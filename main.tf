@@ -61,8 +61,8 @@ resource "aws_iam_role_policy_attachment" "policy_attachment_vpc" {
 }
 
 resource "aws_vpc_endpoint" "s3_endpoint" {
-  service_name = "com.amazonaws.${data.aws_region.current.name}.s3"
-  vpc_id = data.aws_subnet.default.0.vpc_id
+  service_name    = "com.amazonaws.${data.aws_region.current.name}.s3"
+  vpc_id          = data.aws_subnet.default.0.vpc_id
   route_table_ids = data.aws_route_table.private.*.route_table_id
 }
 
@@ -74,9 +74,9 @@ resource "aws_security_group" "default" {
     cidr_blocks = ["0.0.0.0/0"]
   }
   ingress {
-    from_port = 0
-    protocol  = "TCP"
-    to_port   = 65535
+    from_port   = 0
+    protocol    = "TCP"
+    to_port     = 65535
     cidr_blocks = ["0.0.0.0/0"]
   }
   name   = "benthos-lambda-sg"
@@ -120,10 +120,16 @@ resource "aws_lambda_function" "default" {
               }
             },
             {
+              log = {
+                level   = "INFO"
+                message = "reading file $${!json()}"
+              }
+            },
+            {
               cache = {
                 resource = "nurgle"
                 operator = "get"
-                key      = "$${! json() }"
+                key      = "$${!json()}"
               }
             },
             {
@@ -137,12 +143,6 @@ resource "aws_lambda_function" "default" {
               ]
             },
             {
-              log = {
-                level   = "INFO"
-                message = "got object from cache $${!json()}"
-              }
-            },
-            {
               decompress = {
                 algorithm = "gzip"
               }
@@ -153,19 +153,28 @@ resource "aws_lambda_function" "default" {
               }
             },
             {
-              grok = {
-                output_format = "json"
-                patterns = [
-                  "%%{ELB_ACCESS_LOG} %%{QS:agent} %%{NOTSPACE} %%{NOTSPACE} %%{NOTSPACE:target_group} %%{NOTSPACE} %%{QS:requesthostname}"
-                ]
-                pattern_definitions = {
-                  ELB_URIPATHPARAM = "%%{URIPATH:path}(?:%%{URIPARAM:params})?"
-                  ELB_URI          = "%%{URIPROTO:proto}://(?:%%{USER}(?::[^@]*)?@)?(?:%%{URIHOST:urihost})?(?:%%{ELB_URIPATHPARAM})?"
-                  ELB_REQUEST_LINE = "(?:%%{WORD:verb} %%{ELB_URI:request}(?: HTTP/%%{NUMBER:httpversion})?|%%{DATA:rawrequest})"
-                  ELB_ACCESS_LOG   = "%%{TIMESTAMP_ISO8601:timestamp} %%{NOTSPACE:elb} %%{IP:clientip}:%%{INT:clientport:int} (?:(%%{IP:backendip}:?:%%{INT:backendport:int})|-) %%{NUMBER:request_processing_time:float} %%{NUMBER:backend_processing_time:float} %%{NUMBER:response_processing_time:float} %%{INT:response:int} %%{INT:backend_response:int} %%{INT:received_bytes:int} %%{INT:bytes:int} \"%%{ELB_REQUEST_LINE}\""
-                }
+              log = {
+                level   = "DEBUG"
+                message = "read lines from file: $${!json()}"
               }
             },
+            {
+              bloblang = ""
+            },
+//            {
+//              grok = {
+//                output_format = "json"
+//                patterns = [
+//                  "%%{ELB_ACCESS_LOG} %%{QS:agent} %%{NOTSPACE} %%{NOTSPACE} %%{NOTSPACE:target_group} %%{NOTSPACE} %%{QS:requesthostname}"
+//                ]
+//                pattern_definitions = {
+//                  ELB_URIPATHPARAM = "%%{URIPATH:path}(?:%%{URIPARAM:params})?"
+//                  ELB_URI          = "%%{URIPROTO:proto}://(?:%%{USER}(?::[^@]*)?@)?(?:%%{URIHOST:urihost})?(?:%%{ELB_URIPATHPARAM})?"
+//                  ELB_REQUEST_LINE = "(?:%%{WORD:verb} %%{ELB_URI:request}(?: HTTP/%%{NUMBER:httpversion})?|%%{DATA:rawrequest})"
+//                  ELB_ACCESS_LOG   = "%%{TIMESTAMP_ISO8601:timestamp} %%{NOTSPACE:elb} %%{IP:clientip}:%%{INT:clientport:int} (?:(%%{IP:backendip}:?:%%{INT:backendport:int})|-) %%{NUMBER:request_processing_time:float} (%%{NUMBER:backend_processing_time:float}|-) (%%{NUMBER:response_processing_time:float}|-) %%{INT:response:int} %%{INT:backend_response:int} %%{INT:received_bytes:int} %%{INT:bytes:int} \"%%{ELB_REQUEST_LINE}\""
+//                }
+//              }
+//            },
             {
               catch = [
                 {

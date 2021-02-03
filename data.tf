@@ -11,6 +11,6 @@ data "aws_s3_bucket" "log_bucket" {
 }
 
 data "aws_route_table" "private" {
-  count = length(var.subnets)
+  count     = length(var.subnets)
   subnet_id = var.subnets[count.index]
 }
