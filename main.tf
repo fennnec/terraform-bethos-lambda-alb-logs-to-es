@@ -1,99 +1,101 @@
 resource "aws_iam_role" "benthos-role" {
   name = "benthos-s3-read-role"
   assume_role_policy = jsonencode(
-    {
-      Version = "2012-10-17"
-      Statement = [
-        {
-          Effect = "Allow"
-          Principal = {
-            Service = "lambda.amazonaws.com"
-          }
-          Action = "sts:AssumeRole"
+  {
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
         }
-      ]
+        Action = "sts:AssumeRole"
+      }
+    ]
   })
 }
 
 resource "aws_iam_policy" "lambdapolicy" {
   policy = jsonencode(
-    {
-      Version = "2012-10-17"
-      Statement = [
-        {
-          Sid    = "ESPermission"
-          Effect = "Allow"
-          Action = [
-            "es:*"
-          ]
-          Resource = "*"
-        },
-        {
-          Effect = "Allow"
-          Action = [
+  {
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid = "ESPermission"
+        Effect = "Allow"
+        Action = [
+          "es:*"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "s3:ListBucket"]
-          Resource = [
+        Resource = [
           data.aws_s3_bucket.log_bucket.arn]
-        },
-        {
-          Effect = "Allow"
-          Action = [
-            "s3:PutObject",
-            "s3:GetObject"
-          ]
-          Resource = [
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject"
+        ]
+        Resource = [
           "${data.aws_s3_bucket.log_bucket.arn}/*"]
-        }
-      ]
-    }
+      }
+    ]
+  }
   )
 }
 
 resource "aws_iam_role_policy_attachment" "policy_attachment" {
-  role       = aws_iam_role.benthos-role.name
+  role = aws_iam_role.benthos-role.name
   policy_arn = aws_iam_policy.lambdapolicy.arn
 }
 
 resource "aws_iam_role_policy_attachment" "policy_attachment_vpc" {
-  count      = length(var.subnets) > 0 ? 1 : 0
-  role       = aws_iam_role.benthos-role.name
+  count = length(var.subnets) > 0 ? 1 : 0
+  role = aws_iam_role.benthos-role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
 resource "aws_vpc_endpoint" "s3_endpoint" {
-  service_name    = "com.amazonaws.${data.aws_region.current.name}.s3"
-  vpc_id          = data.aws_subnet.default.0.vpc_id
+  service_name = "com.amazonaws.${data.aws_region.current.name}.s3"
+  vpc_id = data.aws_subnet.default.0.vpc_id
   route_table_ids = data.aws_route_table.private.*.route_table_id
 }
 
 resource "aws_security_group" "default" {
   egress {
-    from_port   = 0
-    protocol    = "TCP"
-    to_port     = 65535
-    cidr_blocks = ["0.0.0.0/0"]
+    from_port = 0
+    protocol = "TCP"
+    to_port = 65535
+    cidr_blocks = [
+      "0.0.0.0/0"]
   }
   ingress {
-    from_port   = 0
-    protocol    = "TCP"
-    to_port     = 65535
-    cidr_blocks = ["0.0.0.0/0"]
+    from_port = 0
+    protocol = "TCP"
+    to_port = 65535
+    cidr_blocks = [
+      "0.0.0.0/0"]
   }
-  name   = "benthos-lambda-sg"
+  name = "benthos-lambda-sg"
   vpc_id = data.aws_subnet.default.0.vpc_id
 }
 
 
 resource "aws_lambda_function" "default" {
   function_name = var.name
-  handler       = "benthos-lambda"
-  role          = aws_iam_role.benthos-role.arn
-  runtime       = "go1.x"
-  filename      = "${path.module}/benthos-lambda_3.32.0_linux_amd64.zip"
-  timeout       = 120
+  handler = "benthos-lambda"
+  role = aws_iam_role.benthos-role.arn
+  runtime = "go1.x"
+  filename = "${path.module}/benthos-lambda_3.40.0_linux_amd64.zip"
+  timeout = 120
   vpc_config {
     security_group_ids = aws_security_group.default.*.id
-    subnet_ids         = var.subnets
+    subnet_ids = var.subnets
   }
   environment {
     variables = {
@@ -102,8 +104,8 @@ resource "aws_lambda_function" "default" {
           caches = {
             nurgle = {
               s3 = {
-                region  = data.aws_region.current.name
-                bucket  = var.s3_bucket
+                region = data.aws_region.current.name
+                bucket = var.s3_bucket
                 timeout = "30s"
               }
             }
@@ -121,7 +123,7 @@ resource "aws_lambda_function" "default" {
             },
             {
               log = {
-                level   = "INFO"
+                level = "INFO"
                 message = "reading file $${!json()}"
               }
             },
@@ -129,14 +131,14 @@ resource "aws_lambda_function" "default" {
               cache = {
                 resource = "nurgle"
                 operator = "get"
-                key      = "$${!json()}"
+                key = "$${!json()}"
               }
             },
             {
               catch = [
                 {
                   log = {
-                    level   = "ERROR"
+                    level = "ERROR"
                     message = "cache failed with $${!error()}"
                   }
                 }
@@ -154,32 +156,21 @@ resource "aws_lambda_function" "default" {
             },
             {
               log = {
-                level   = "DEBUG"
+                level = "DEBUG"
                 message = "read lines from file: $${!json()}"
               }
             },
             {
-              bloblang = ""
+              jq = {
+                raw = true,
+                query = '{"logline": .}'
+              }
             },
-//            {
-//              grok = {
-//                output_format = "json"
-//                patterns = [
-//                  "%%{ELB_ACCESS_LOG} %%{QS:agent} %%{NOTSPACE} %%{NOTSPACE} %%{NOTSPACE:target_group} %%{NOTSPACE} %%{QS:requesthostname}"
-//                ]
-//                pattern_definitions = {
-//                  ELB_URIPATHPARAM = "%%{URIPATH:path}(?:%%{URIPARAM:params})?"
-//                  ELB_URI          = "%%{URIPROTO:proto}://(?:%%{USER}(?::[^@]*)?@)?(?:%%{URIHOST:urihost})?(?:%%{ELB_URIPATHPARAM})?"
-//                  ELB_REQUEST_LINE = "(?:%%{WORD:verb} %%{ELB_URI:request}(?: HTTP/%%{NUMBER:httpversion})?|%%{DATA:rawrequest})"
-//                  ELB_ACCESS_LOG   = "%%{TIMESTAMP_ISO8601:timestamp} %%{NOTSPACE:elb} %%{IP:clientip}:%%{INT:clientport:int} (?:(%%{IP:backendip}:?:%%{INT:backendport:int})|-) %%{NUMBER:request_processing_time:float} (%%{NUMBER:backend_processing_time:float}|-) (%%{NUMBER:response_processing_time:float}|-) %%{INT:response:int} %%{INT:backend_response:int} %%{INT:received_bytes:int} %%{INT:bytes:int} \"%%{ELB_REQUEST_LINE}\""
-//                }
-//              }
-//            },
             {
               catch = [
                 {
                   log = {
-                    level   = "ERROR"
+                    level = "ERROR"
                     message = "Failed with error $${!error()}"
                   }
                 }
@@ -190,26 +181,26 @@ resource "aws_lambda_function" "default" {
         output = {
           elasticsearch = {
             urls = [
-            "https://${var.es_endpoint}"]
-            index       = "${var.index_name}-$${!timestamp(\"2006-01-02\")}"
-            type        = "_doc"
-            pipeline    = var.es_pipeline
-            sniff       = false
+              "https://${var.es_endpoint}"]
+            index = "${var.index_name}-$${!timestamp(\"2006-01-02\")}"
+            type = "_doc"
+            pipeline = var.es_pipeline
+            sniff = false
             healthcheck = false
             tls = {
-              enabled          = true
+              enabled = true
               skip_cert_verify = true
             }
             aws = {
               enabled = true
-              region  = data.aws_region.current.name
+              region = data.aws_region.current.name
               /*              credentials = {
                 role = aws_iam_role.benthos-role.arn
               }*/
             }
           }
         }
-        }
+      }
       )
     }
   }
@@ -219,9 +210,10 @@ resource "aws_s3_bucket_notification" "default" {
   bucket = var.s3_bucket
   lambda_function {
     lambda_function_arn = aws_lambda_function.default.arn
-    events              = ["s3:ObjectCreated:*"]
-    filter_suffix       = ".log.gz"
-    filter_prefix       = "AWSLogs/147429388953/elasticloadbalancing/"
+    events = [
+      "s3:ObjectCreated:*"]
+    filter_suffix = ".log.gz"
+    filter_prefix = "AWSLogs/147429388953/elasticloadbalancing/"
   }
 }
 
