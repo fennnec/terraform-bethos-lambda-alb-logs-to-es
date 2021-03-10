@@ -163,7 +163,7 @@ resource "aws_lambda_function" "default" {
             {
               jq = {
                 raw = true,
-                query = '{"logline": .}'
+                query = "{\"logline\": .}"
               }
             },
             {
