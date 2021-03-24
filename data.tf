@@ -1,6 +1,8 @@
 data "aws_region" "current" {
 }
 
+data "aws_caller_identity" "current" {}
+
 data "aws_subnet" "default" {
   count = length(var.subnets)
   id    = var.subnets[count.index]
