@@ -16,3 +16,16 @@ data "aws_route_table" "private" {
   count     = length(var.subnets)
   subnet_id = var.subnets[count.index]
 }
+
+data "aws_iam_policy_document" "lambda-logging" {
+  statement {
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    resources = [
+    "arn:aws:logs:*:*:*"]
+    effect = "Allow"
+  }
+}

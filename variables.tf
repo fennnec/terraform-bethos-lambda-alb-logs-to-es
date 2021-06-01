@@ -34,3 +34,8 @@ variable "s3_bucket" {
   type        = string
   description = "s3 bucket to attach to"
 }
+
+variable "cloudwatch_log_retention_days" {
+  type    = number
+  default = 14
+}

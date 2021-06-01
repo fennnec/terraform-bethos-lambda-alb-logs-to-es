@@ -224,6 +224,23 @@ resource "aws_s3_bucket_notification" "default" {
   }
 }
 
+resource "aws_cloudwatch_log_group" "benthos_log_group" {
+  name              = "/aws/lambda/${aws_lambda_function.default.function_name}"
+  retention_in_days = var.cloudwatch_log_retention_days
+}
+
+resource "aws_iam_policy" "lambda_logging" {
+  name        = "lambda_logging"
+  path        = "/"
+  description = "IAM policy for logging from a lambda"
+  policy      = data.aws_iam_policy_document.lambda-logging.json
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_logs" {
+  role       = aws_iam_role.benthos-role.name
+  policy_arn = aws_iam_policy.lambda_logging.arn
+}
+
 /*
 vpc-es-log-cluster-vwp6xihvke3twiexjqknacbuae.eu-central-1.es.amazonaws.com
 147429388953-alb-access-logs-main-lb
