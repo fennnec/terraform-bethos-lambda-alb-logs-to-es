@@ -91,7 +91,7 @@ resource "aws_lambda_function" "default" {
   handler       = "benthos-lambda"
   role          = aws_iam_role.benthos-role.arn
   runtime       = "go1.x"
-  filename      = "${path.module}/benthos-lambda_3.40.0_linux_amd64.zip"
+  filename      = "${path.module}/benthos-lambda_3.46.1_linux_amd64.zip"
   timeout       = 120
   vpc_config {
     security_group_ids = aws_security_group.default.*.id
